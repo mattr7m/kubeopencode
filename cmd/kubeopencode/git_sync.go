@@ -117,7 +117,7 @@ func runGitSync(cmd *cobra.Command, args []string) error {
 	defer ticker.Stop()
 
 	// Run first sync immediately
-	syncOnce(targetDir, fetchRef)
+	syncAndReap(targetDir, fetchRef)
 
 	for {
 		select {
@@ -125,8 +125,19 @@ func runGitSync(cmd *cobra.Command, args []string) error {
 			fmt.Println("git-sync: Shutdown complete")
 			return nil
 		case <-ticker.C:
-			syncOnce(targetDir, fetchRef)
+			syncAndReap(targetDir, fetchRef)
 		}
+	}
+}
+
+// syncAndReap runs one sync cycle, then reaps any orphans it left behind.
+// syncOnce runs its commands sequentially and waits for each, so once it
+// returns, every remaining exited child is an orphan nobody else will wait
+// for (see reapOrphans).
+func syncAndReap(targetDir, fetchRef string) {
+	syncOnce(targetDir, fetchRef)
+	if n := reapOrphans(); n > 0 {
+		fmt.Printf("git-sync: Reaped %d orphaned process(es)\n", n)
 	}
 }
 
