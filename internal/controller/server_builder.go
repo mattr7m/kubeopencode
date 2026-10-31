@@ -738,6 +738,16 @@ func BuildServerDeployment(agent *kubeopenv1alpha1.Agent, agentCfg agentConfig, 
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
+			// Recreate, not RollingUpdate: the server pod mounts ReadWriteOnce
+			// PVCs (workspace, sessions, and any extraVolumes). A rolling update
+			// starts the new pod before stopping the old one; if the scheduler
+			// places it on a different node, the volumes cannot attach there
+			// (Multi-Attach), the new pod never becomes Ready, and the old one
+			// is never scaled down, so the rollout deadlocks. A single-replica
+			// server gains nothing from a surge pod, so stop the old pod first.
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					AgentLabelKey: agent.Name,

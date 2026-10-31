@@ -2811,3 +2811,24 @@ func TestBuildServerDeployment_OTelEnableLLMTraces(t *testing.T) {
 		t.Error("expected OPENCODE_CONFIG_CONTENT to be set when enableLLMTraces is true")
 	}
 }
+
+func TestBuildServerDeployment_UsesRecreateStrategy(t *testing.T) {
+	agent := &kubeopenv1alpha1.Agent{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-agent", Namespace: "default"},
+		Spec:       kubeopenv1alpha1.AgentSpec{Port: 4096},
+	}
+	cfg := agentConfig{
+		executorImage: "test-executor:v1.0.0",
+		agentImage:    "test-agent:v1.0.0",
+		workspaceDir:  "/workspace",
+	}
+
+	deployment := BuildServerDeployment(agent, cfg, defaultSystemConfig(), nil, nil, nil, nil, nil)
+
+	if got := deployment.Spec.Strategy.Type; got != appsv1.RecreateDeploymentStrategyType {
+		t.Errorf("Strategy.Type = %q, want %q (RWO volumes deadlock a RollingUpdate across nodes)", got, appsv1.RecreateDeploymentStrategyType)
+	}
+	if deployment.Spec.Strategy.RollingUpdate != nil {
+		t.Errorf("Strategy.RollingUpdate = %+v, want nil with Recreate", deployment.Spec.Strategy.RollingUpdate)
+	}
+}
